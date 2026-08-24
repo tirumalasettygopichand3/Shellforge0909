@@ -6,7 +6,34 @@
 #include <readline/history.h>
 
 #include "lexer.h"
-#include "token.h"
+#include "parser.h"
+#include "expand.h"
+
+static void print_command(Command *command)
+{
+    printf("\nParsed command:\n");
+
+    printf("Arguments:");
+
+    for (int i = 0; i < command->argument_count; i++)
+        printf(" [%s]", command->arguments[i]);
+
+    printf("\n");
+
+    if (command->input_file != NULL)
+        printf("Input file: %s\n", command->input_file);
+
+    if (command->output_file != NULL)
+        printf("Output file: %s\n", command->output_file);
+
+    if (command->append_file != NULL)
+        printf("Append file: %s\n", command->append_file);
+
+    printf("Background: %s\n",
+           command->background ? "yes" : "no");
+
+    printf("\n");
+}
 
 int main(void)
 {
@@ -14,7 +41,8 @@ int main(void)
 
     printf("=================================\n");
     printf("       Welcome to Shellforge\n");
-    printf("       Milestone 2 - Lexer\n");
+    printf("       Milestone 2.2\n");
+    printf("       Parser & Expand\n");
     printf("=================================\n");
 
     while (1) {
@@ -43,17 +71,14 @@ int main(void)
 
         Token **tokens = tokenize(input, &token_count);
 
-        printf("\nTokens:\n");
+        Command *command =
+            parse_tokens(tokens, token_count);
 
-        for (int i = 0; i < token_count; i++) {
-            printf("  [%d] %-12s : %s\n",
-                   i,
-                   token_type_to_string(tokens[i]->type),
-                   tokens[i]->value);
-        }
+        expand_command(command);
 
-        printf("\n");
+        print_command(command);
 
+        free_command(command);
         free_tokens(tokens, token_count);
         free(input);
     }
