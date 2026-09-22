@@ -8,6 +8,7 @@
 #include "lexer.h"
 #include "parser.h"
 #include "builtin.h"
+#include "executor.h"
 
 int main(void)
 {
@@ -15,7 +16,7 @@ int main(void)
 
     printf("========================================\n");
     printf("          Welcome to Shellforge\n");
-    printf("          Built-in Commands\n");
+    printf("       External Command Execution\n");
     printf("========================================\n");
 
     while (1)
@@ -56,8 +57,7 @@ int main(void)
         }
 
         /*
-         * Built-in commands are executed directly
-         * inside the Shellforge process.
+         * First check whether the command is a built-in.
          */
         if (is_builtin(command))
         {
@@ -65,8 +65,10 @@ int main(void)
         }
         else
         {
-            printf("Command not found: %s\n",
-                   command->arguments[0]);
+            /*
+             * Otherwise execute it as an external command.
+             */
+            execute_external(command);
         }
 
         free_command(command);
