@@ -1,7 +1,5 @@
 CC = gcc
-
 CFLAGS = -Wall -Wextra -Iinclude -g
-
 LDFLAGS = -lreadline
 
 TARGET = shellforge

@@ -4,165 +4,216 @@
 #include <ctype.h>
 
 #include "lexer.h"
+#include "token.h"
 
-static void add_token(Token **tokens,
-                      int *count,
-                      int *capacity,
-                      TokenType type,
-                      const char *value)
+
+static int is_special_char(char c)
 {
-    if (*count >= *capacity) {
-        *capacity *= 2;
-
-        Token **temp = realloc(
-            tokens,
-            sizeof(Token *) * (*capacity)
-        );
-
-        if (temp == NULL) {
-            perror("realloc");
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    tokens[*count] = create_token(type, value);
-    (*count)++;
+    return c == '|' ||
+           c == '<' ||
+           c == '>' ||
+           c == '&' ||
+           c == ';';
 }
+
 
 Token **tokenize(const char *input, int *token_count)
 {
+    Token **tokens;
     int capacity = 16;
     int count = 0;
     int i = 0;
 
-    Token **tokens = malloc(sizeof(Token *) * capacity);
+    tokens = malloc(sizeof(Token *) * capacity);
 
-    if (tokens == NULL) {
-        perror("malloc");
-        exit(EXIT_FAILURE);
-    }
+    if (tokens == NULL)
+        return NULL;
 
-    while (input[i] != '\0') {
-
-        if (isspace((unsigned char)input[i])) {
+    while (input[i] != '\0')
+    {
+        /* Skip spaces */
+        if (isspace((unsigned char)input[i]))
+        {
             i++;
             continue;
         }
 
-        if (input[i] == '|') {
-            add_token(tokens, &count, &capacity,
-                      TOKEN_PIPE, "|");
+        /* Expand token array if necessary */
+        if (count >= capacity - 2)
+        {
+            capacity *= 2;
+
+            tokens = realloc(
+                tokens,
+                sizeof(Token *) * capacity
+            );
+
+            if (tokens == NULL)
+                return NULL;
+        }
+
+
+        /* -----------------------------
+           PIPE |
+           ----------------------------- */
+        if (input[i] == '|')
+        {
+            tokens[count++] =
+                create_token(TOKEN_PIPE, "|");
+
             i++;
             continue;
         }
 
-        if (input[i] == '<') {
-            add_token(tokens, &count, &capacity,
-                      TOKEN_INPUT, "<");
+
+        /* -----------------------------
+           INPUT <
+           ----------------------------- */
+        if (input[i] == '<')
+        {
+            tokens[count++] =
+                create_token(TOKEN_INPUT, "<");
+
             i++;
             continue;
         }
 
-        if (input[i] == '>') {
-            if (input[i + 1] == '>') {
-                add_token(tokens, &count, &capacity,
-                          TOKEN_APPEND, ">>");
+
+        /* -----------------------------
+           OUTPUT > or APPEND >>
+           ----------------------------- */
+        if (input[i] == '>')
+        {
+            if (input[i + 1] == '>')
+            {
+                tokens[count++] =
+                    create_token(TOKEN_APPEND, ">>");
+
                 i += 2;
-            } else {
-                add_token(tokens, &count, &capacity,
-                          TOKEN_OUTPUT, ">");
+            }
+            else
+            {
+                tokens[count++] =
+                    create_token(TOKEN_OUTPUT, ">");
+
                 i++;
             }
+
             continue;
         }
 
-        if (input[i] == '&') {
-            add_token(tokens, &count, &capacity,
-                      TOKEN_BACKGROUND, "&");
+
+        /* -----------------------------
+           BACKGROUND &
+           ----------------------------- */
+        if (input[i] == '&')
+        {
+            tokens[count++] =
+                create_token(TOKEN_BACKGROUND, "&");
+
             i++;
             continue;
         }
 
-        if (input[i] == ';') {
-            add_token(tokens, &count, &capacity,
-                      TOKEN_SEMICOLON, ";");
+
+        /* -----------------------------
+           SEMICOLON ;
+           ----------------------------- */
+        if (input[i] == ';')
+        {
+            tokens[count++] =
+                create_token(TOKEN_SEMICOLON, ";");
+
             i++;
             continue;
         }
 
-        char buffer[1024];
-        int j = 0;
 
-        while (input[i] != '\0' &&
-               !isspace((unsigned char)input[i]) &&
-               input[i] != '|' &&
-               input[i] != '<' &&
-               input[i] != '>' &&
-               input[i] != '&' &&
-               input[i] != ';') {
+        /* -----------------------------
+           WORD
+           ----------------------------- */
 
-            if (input[i] == '\'') {
-                i++;
+        {
+            char buffer[1024];
+            int length = 0;
+            char quote = '\0';
 
-                while (input[i] != '\0' &&
-                       input[i] != '\'') {
+            while (input[i] != '\0')
+            {
+                /* Inside quotes */
+                if (quote != '\0')
+                {
+                    if (input[i] == quote)
+                    {
+                        quote = '\0';
+                        i++;
+                        continue;
+                    }
 
-                    if (j < 1023)
-                        buffer[j++] = input[i];
+                    if (length < 1023)
+                        buffer[length++] = input[i];
 
                     i++;
+                    continue;
                 }
 
-                if (input[i] == '\'')
+
+                /* Start quote */
+                if (input[i] == '"' ||
+                    input[i] == '\'')
+                {
+                    quote = input[i];
                     i++;
-
-                continue;
-            }
-
-            if (input[i] == '"') {
-                i++;
-
-                while (input[i] != '\0' &&
-                       input[i] != '"') {
-
-                    if (j < 1023)
-                        buffer[j++] = input[i];
-
-                    i++;
+                    continue;
                 }
 
-                if (input[i] == '"')
-                    i++;
 
-                continue;
+                /* End of word */
+                if (isspace((unsigned char)input[i]) ||
+                    is_special_char(input[i]))
+                {
+                    break;
+                }
+
+
+                if (length < 1023)
+                    buffer[length++] = input[i];
+
+                i++;
             }
 
-            if (j < 1023)
-                buffer[j++] = input[i];
+            buffer[length] = '\0';
 
-            i++;
-        }
-
-        buffer[j] = '\0';
-
-        if (j > 0) {
-            add_token(tokens, &count, &capacity,
-                      TOKEN_WORD, buffer);
+            if (length > 0)
+            {
+                tokens[count++] =
+                    create_token(TOKEN_WORD, buffer);
+            }
         }
     }
+
+
+    /* EOF token */
+    tokens[count++] =
+        create_token(TOKEN_EOF, NULL);
 
     *token_count = count;
 
     return tokens;
 }
 
+
 void free_tokens(Token **tokens, int token_count)
 {
+    int i;
+
     if (tokens == NULL)
         return;
 
-    for (int i = 0; i < token_count; i++)
+    for (i = 0; i < token_count; i++)
+    {
         free_token(tokens[i]);
+    }
 
     free(tokens);
 }
